@@ -2,6 +2,7 @@ class Lock:
     def __init__(self, *codes):
         self.codes = codes
         self.position = None
+        self.auto_destroys = False
         self.message_in_front = "You are standing in front of a code lock. \n" \
                                 "It needs one or more codes to open. Call open_lock() with the code(s)."
 

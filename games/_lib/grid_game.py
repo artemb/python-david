@@ -4,14 +4,16 @@ from typing import Iterable
 import pygame
 from pygame.transform import scale, flip
 
-from games._lib.grid_map import CELL, WALL, DIAMOND, LOCK, FRIEND, GridMap
+from games._lib.grid_map import CELL, WALL, DIAMOND, LOCK, FRIEND, GridMap, GREEN_LOCK
 from games._lib.objects import Lock, Friend
 
 WALL_TILE = pygame.image.load("../_lib/images/wall.png")
 DIAMOND_TILE = pygame.image.load('../_lib/images/diamond.png')
 PLAYER_TILE = scale(pygame.image.load('../_lib/images/player.png'), (int(CELL * .8), CELL))
+PLAYER_WON_TILE = scale(pygame.image.load('../_lib/images/player_won.png'), (int(CELL * .8), CELL))
 FRIEND_TILE = flip(scale(pygame.image.load('../_lib/images/friend.png'), (int(CELL * .8), CELL)), True, False)
 LOCK_TILE = pygame.transform.scale(pygame.image.load('../_lib/images/lock.png'), (64, 64))
+GREEN_LOCK_TILE = pygame.transform.scale(pygame.image.load('../_lib/images/lock_green.png'), (64, 64))
 MESSAGEBOARD = 'M'
 
 FPS = 120
@@ -27,8 +29,9 @@ class CodingGame:
         self.keyboard = mapdata['allowKeyboard']
 
         self.running = True
+        self.won = False
         self.message = mapdata['welcomeMessage']
-        self.font = pygame.font.SysFont("Arial", 30)
+        self.font = pygame.font.Font("../_lib/fonts/ubuntu-regular.ttf", 26)
         self.clock = pygame.time.Clock()
 
         self.load_locks()
@@ -65,6 +68,12 @@ class CodingGame:
                 lock = Lock(code)
             if 'label' in lockdata:
                 lock.message_in_front = lockdata['label']
+
+            if 'message_wrong_code' in lockdata:
+                lock.message_wrong_code = lockdata['message_wrong_code']
+
+            if 'auto_destroys' in lockdata:
+                lock.auto_destroys = lockdata['auto_destroys']
 
             if 'position' in lockdata:
                 lock.position = lockdata['position']
@@ -110,9 +119,12 @@ class CodingGame:
                 self.screen.blit(DIAMOND_TILE, self.grid.rect(pos))
             elif obj == LOCK:
                 self.screen.blit(LOCK_TILE, self.grid.rect(pos))
+            elif obj == GREEN_LOCK:
+                self.screen.blit(GREEN_LOCK_TILE, self.grid.rect(pos))
             elif obj == FRIEND:
                 self.screen.blit(FRIEND_TILE, self.grid.rect(pos))
 
+        # Draw the message board
         if self.messageRect is not None:
             pygame.draw.rect(self.screen, (0, 161, 228), self.messageRect)
             labels = []
@@ -132,7 +144,10 @@ class CodingGame:
         # Draw the player
         x = player_x or self.grid.xy(self.col, self.row)[0]
         y = player_y or self.grid.xy(self.col, self.row)[1]
-        self.screen.blit(PLAYER_TILE, (x, y, CELL, CELL))
+        if self.won:
+            self.screen.blit(PLAYER_WON_TILE, (x, y, CELL, CELL))
+        else:
+            self.screen.blit(PLAYER_TILE, (x, y, CELL, CELL))
 
         # update the display
         pygame.display.update()
@@ -149,12 +164,31 @@ class CodingGame:
                 return lock
         raise Exception("No lock found")
 
+    def look(self):
+        obj = self.grid.object_in_sight()
+        result = None
+        if obj == LOCK:
+            result = 'orange lock'
+        elif obj == GREEN_LOCK:
+            result = 'green lock'
+
+        if result is None:
+            self.message = "There is nothing in sight"
+        else:
+            self.message = [
+                f"In front of you you see {result}.",
+                f"(the look() function returns '{result}')"
+            ]
+
+        self._redraw()
+        return result
+
     def move(self, col_step, row_step):
         newcol = self.col + col_step
         newrow = self.row + row_step
 
         # Check for collision
-        if self.grid[newcol, newrow] in (WALL, LOCK):
+        if self.grid[newcol, newrow] in (WALL, LOCK, GREEN_LOCK, FRIEND):
             return
 
         # Animate movement
@@ -180,6 +214,13 @@ class CodingGame:
             self.message = self.friends[0].message_in_front
             self._redraw()
 
+        # Check if we have reached the diamond
+        if self.grid[self.col, self.row] == DIAMOND:
+            self.message = "Congratulations! You won!!!"
+            del self.grid[self.col, self.row]  # removing the diamond
+            self.won = True
+            self._redraw()
+
     def open_lock(self, *codes):
 
         self.message = f"You are trying to open the lock with code: {', '.join([str(x) for x in codes])}."
@@ -187,7 +228,7 @@ class CodingGame:
         self._redraw()
         sleep(3)
         # Check if we are in front of a lock
-        if self.grid[self.col + 1, self.row] != LOCK:
+        if self.grid[self.col + 1, self.row] not in (LOCK, GREEN_LOCK):
             self.message = "There is no lock in front of you"
             self._redraw()
             return
@@ -196,6 +237,9 @@ class CodingGame:
         lock = self.get_lock_in_front()
         if not lock.open(*codes):
             self.message = lock.message_wrong_code
+            if lock.auto_destroys:
+                self.grid[self.col+1, self.row] = 'X'
+                self.locks.remove(lock)
             self._redraw()
             sleep(1)
             return

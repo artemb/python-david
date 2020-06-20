@@ -43,8 +43,12 @@ def up(steps=1):
 def open_lock(*codes):
     game.open_lock(*codes)
 
-def ask():
+def ask(question=""):
+    # Ignore question
     return game.ask()
+
+def look():
+    return game.look()
 
 
 def run():

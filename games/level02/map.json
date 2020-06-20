@@ -20,7 +20,7 @@
     },
     {
       "code": ["hello", 5, "cats and dogs"],
-      "label": "There are 3 keys required for this lock. The word hello, the number 5 and the phrase: cats and dogs"
+      "label": ["There are 3 keys required for this lock.","The word hello, the number 5 and the phrase: cats and dogs"]
     }
   ]
 }
